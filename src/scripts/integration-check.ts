@@ -1,4 +1,4 @@
-import { runIntegrationCheck } from '../lib/integration-check'
+import { runIntegrationCheck } from '../shared/lib/integration-check'
 
 const report = await runIntegrationCheck()
 

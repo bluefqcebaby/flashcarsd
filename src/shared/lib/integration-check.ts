@@ -1,8 +1,26 @@
 import { sql } from 'drizzle-orm'
 import OpenAI from 'openai'
-import { getDb } from './db/client'
+import { getDb } from '#/shared/db/client'
 import { getEnvVar, getOpenAIModel, listMissingIntegrationEnvVars } from './env'
-import type { IntegrationReport } from './integration-types'
+
+type IntegrationCheckResult = {
+  ok: boolean
+  durationMs: number
+  details: string
+  error?: string
+}
+
+export type IntegrationReport = {
+  ok: boolean
+  checkedAt: string
+  openaiModel: string
+  missingEnvVars: string[]
+  checks: {
+    databaseConnection: IntegrationCheckResult
+    flashcardsTable: IntegrationCheckResult
+    openai: IntegrationCheckResult
+  }
+}
 
 async function runCheck(
   check: () => Promise<string>,
@@ -91,16 +109,19 @@ export async function runIntegrationCheck(): Promise<IntegrationReport> {
     const response = await client.responses.create({
       model: openaiModel,
       input: 'Reply with exactly: OK',
-      max_output_tokens: 10,
+      max_output_tokens: 16,
     })
 
     const text = response.output_text.trim()
-
-    if (!text) {
-      throw new Error('OpenAI returned an empty response.')
+    if (text.length > 0) {
+      return `OpenAI call succeeded with output: "${text}"`
     }
 
-    return `OpenAI call succeeded with output: "${text}"`
+    if (!response.id) {
+      throw new Error('OpenAI returned a response without an id.')
+    }
+
+    return `OpenAI call succeeded (response id: ${response.id}, empty text output)`
   })
 
   const ok = databaseConnection.ok && flashcardsTable.ok && openai.ok
