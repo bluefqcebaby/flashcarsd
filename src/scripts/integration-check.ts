@@ -1,9 +1,9 @@
-import { runIntegrationCheck } from '../shared/lib/integration-check'
+import { runIntegrationCheck } from "../shared/lib/integration-check";
 
-const report = await runIntegrationCheck()
+const report = await runIntegrationCheck();
 
-console.log(JSON.stringify(report, null, 2))
+console.log(JSON.stringify(report, null, 2));
 
 if (!report.ok) {
-  process.exit(1)
+	process.exit(1);
 }

@@ -9,12 +9,69 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as SettingsRouteImport } from './routes/settings'
+import { Route as ReviewRouteImport } from './routes/review'
+import { Route as OnboardingRouteImport } from './routes/onboarding'
+import { Route as DashboardRouteImport } from './routes/dashboard'
+import { Route as AddCardRouteImport } from './routes/add-card'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as ApiStarterDeckRouteImport } from './routes/api/starter-deck'
+import { Route as ApiSessionSummaryRouteImport } from './routes/api/session-summary'
+import { Route as ApiReviewCardRouteImport } from './routes/api/review-card'
+import { Route as ApiResetAppRouteImport } from './routes/api/reset-app'
 import { Route as ApiIntegrationCheckRouteImport } from './routes/api/integration-check'
+import { Route as ApiGenerateCardRouteImport } from './routes/api/generate-card'
+import { Route as ApiCardsRouteImport } from './routes/api/cards'
+import { Route as ApiAppStateRouteImport } from './routes/api/app-state'
 
+const SettingsRoute = SettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ReviewRoute = ReviewRouteImport.update({
+  id: '/review',
+  path: '/review',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const OnboardingRoute = OnboardingRouteImport.update({
+  id: '/onboarding',
+  path: '/onboarding',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DashboardRoute = DashboardRouteImport.update({
+  id: '/dashboard',
+  path: '/dashboard',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AddCardRoute = AddCardRouteImport.update({
+  id: '/add-card',
+  path: '/add-card',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiStarterDeckRoute = ApiStarterDeckRouteImport.update({
+  id: '/api/starter-deck',
+  path: '/api/starter-deck',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiSessionSummaryRoute = ApiSessionSummaryRouteImport.update({
+  id: '/api/session-summary',
+  path: '/api/session-summary',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiReviewCardRoute = ApiReviewCardRouteImport.update({
+  id: '/api/review-card',
+  path: '/api/review-card',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiResetAppRoute = ApiResetAppRouteImport.update({
+  id: '/api/reset-app',
+  path: '/api/reset-app',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiIntegrationCheckRoute = ApiIntegrationCheckRouteImport.update({
@@ -22,40 +79,209 @@ const ApiIntegrationCheckRoute = ApiIntegrationCheckRouteImport.update({
   path: '/api/integration-check',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiGenerateCardRoute = ApiGenerateCardRouteImport.update({
+  id: '/api/generate-card',
+  path: '/api/generate-card',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiCardsRoute = ApiCardsRouteImport.update({
+  id: '/api/cards',
+  path: '/api/cards',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiAppStateRoute = ApiAppStateRouteImport.update({
+  id: '/api/app-state',
+  path: '/api/app-state',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/add-card': typeof AddCardRoute
+  '/dashboard': typeof DashboardRoute
+  '/onboarding': typeof OnboardingRoute
+  '/review': typeof ReviewRoute
+  '/settings': typeof SettingsRoute
+  '/api/app-state': typeof ApiAppStateRoute
+  '/api/cards': typeof ApiCardsRoute
+  '/api/generate-card': typeof ApiGenerateCardRoute
   '/api/integration-check': typeof ApiIntegrationCheckRoute
+  '/api/reset-app': typeof ApiResetAppRoute
+  '/api/review-card': typeof ApiReviewCardRoute
+  '/api/session-summary': typeof ApiSessionSummaryRoute
+  '/api/starter-deck': typeof ApiStarterDeckRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/add-card': typeof AddCardRoute
+  '/dashboard': typeof DashboardRoute
+  '/onboarding': typeof OnboardingRoute
+  '/review': typeof ReviewRoute
+  '/settings': typeof SettingsRoute
+  '/api/app-state': typeof ApiAppStateRoute
+  '/api/cards': typeof ApiCardsRoute
+  '/api/generate-card': typeof ApiGenerateCardRoute
   '/api/integration-check': typeof ApiIntegrationCheckRoute
+  '/api/reset-app': typeof ApiResetAppRoute
+  '/api/review-card': typeof ApiReviewCardRoute
+  '/api/session-summary': typeof ApiSessionSummaryRoute
+  '/api/starter-deck': typeof ApiStarterDeckRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/add-card': typeof AddCardRoute
+  '/dashboard': typeof DashboardRoute
+  '/onboarding': typeof OnboardingRoute
+  '/review': typeof ReviewRoute
+  '/settings': typeof SettingsRoute
+  '/api/app-state': typeof ApiAppStateRoute
+  '/api/cards': typeof ApiCardsRoute
+  '/api/generate-card': typeof ApiGenerateCardRoute
   '/api/integration-check': typeof ApiIntegrationCheckRoute
+  '/api/reset-app': typeof ApiResetAppRoute
+  '/api/review-card': typeof ApiReviewCardRoute
+  '/api/session-summary': typeof ApiSessionSummaryRoute
+  '/api/starter-deck': typeof ApiStarterDeckRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/api/integration-check'
+  fullPaths:
+    | '/'
+    | '/add-card'
+    | '/dashboard'
+    | '/onboarding'
+    | '/review'
+    | '/settings'
+    | '/api/app-state'
+    | '/api/cards'
+    | '/api/generate-card'
+    | '/api/integration-check'
+    | '/api/reset-app'
+    | '/api/review-card'
+    | '/api/session-summary'
+    | '/api/starter-deck'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/api/integration-check'
-  id: '__root__' | '/' | '/api/integration-check'
+  to:
+    | '/'
+    | '/add-card'
+    | '/dashboard'
+    | '/onboarding'
+    | '/review'
+    | '/settings'
+    | '/api/app-state'
+    | '/api/cards'
+    | '/api/generate-card'
+    | '/api/integration-check'
+    | '/api/reset-app'
+    | '/api/review-card'
+    | '/api/session-summary'
+    | '/api/starter-deck'
+  id:
+    | '__root__'
+    | '/'
+    | '/add-card'
+    | '/dashboard'
+    | '/onboarding'
+    | '/review'
+    | '/settings'
+    | '/api/app-state'
+    | '/api/cards'
+    | '/api/generate-card'
+    | '/api/integration-check'
+    | '/api/reset-app'
+    | '/api/review-card'
+    | '/api/session-summary'
+    | '/api/starter-deck'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AddCardRoute: typeof AddCardRoute
+  DashboardRoute: typeof DashboardRoute
+  OnboardingRoute: typeof OnboardingRoute
+  ReviewRoute: typeof ReviewRoute
+  SettingsRoute: typeof SettingsRoute
+  ApiAppStateRoute: typeof ApiAppStateRoute
+  ApiCardsRoute: typeof ApiCardsRoute
+  ApiGenerateCardRoute: typeof ApiGenerateCardRoute
   ApiIntegrationCheckRoute: typeof ApiIntegrationCheckRoute
+  ApiResetAppRoute: typeof ApiResetAppRoute
+  ApiReviewCardRoute: typeof ApiReviewCardRoute
+  ApiSessionSummaryRoute: typeof ApiSessionSummaryRoute
+  ApiStarterDeckRoute: typeof ApiStarterDeckRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/settings': {
+      id: '/settings'
+      path: '/settings'
+      fullPath: '/settings'
+      preLoaderRoute: typeof SettingsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/review': {
+      id: '/review'
+      path: '/review'
+      fullPath: '/review'
+      preLoaderRoute: typeof ReviewRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/onboarding': {
+      id: '/onboarding'
+      path: '/onboarding'
+      fullPath: '/onboarding'
+      preLoaderRoute: typeof OnboardingRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/dashboard': {
+      id: '/dashboard'
+      path: '/dashboard'
+      fullPath: '/dashboard'
+      preLoaderRoute: typeof DashboardRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/add-card': {
+      id: '/add-card'
+      path: '/add-card'
+      fullPath: '/add-card'
+      preLoaderRoute: typeof AddCardRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/starter-deck': {
+      id: '/api/starter-deck'
+      path: '/api/starter-deck'
+      fullPath: '/api/starter-deck'
+      preLoaderRoute: typeof ApiStarterDeckRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/session-summary': {
+      id: '/api/session-summary'
+      path: '/api/session-summary'
+      fullPath: '/api/session-summary'
+      preLoaderRoute: typeof ApiSessionSummaryRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/review-card': {
+      id: '/api/review-card'
+      path: '/api/review-card'
+      fullPath: '/api/review-card'
+      preLoaderRoute: typeof ApiReviewCardRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/reset-app': {
+      id: '/api/reset-app'
+      path: '/api/reset-app'
+      fullPath: '/api/reset-app'
+      preLoaderRoute: typeof ApiResetAppRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/integration-check': {
@@ -65,12 +291,45 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiIntegrationCheckRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/generate-card': {
+      id: '/api/generate-card'
+      path: '/api/generate-card'
+      fullPath: '/api/generate-card'
+      preLoaderRoute: typeof ApiGenerateCardRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/cards': {
+      id: '/api/cards'
+      path: '/api/cards'
+      fullPath: '/api/cards'
+      preLoaderRoute: typeof ApiCardsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/app-state': {
+      id: '/api/app-state'
+      path: '/api/app-state'
+      fullPath: '/api/app-state'
+      preLoaderRoute: typeof ApiAppStateRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AddCardRoute: AddCardRoute,
+  DashboardRoute: DashboardRoute,
+  OnboardingRoute: OnboardingRoute,
+  ReviewRoute: ReviewRoute,
+  SettingsRoute: SettingsRoute,
+  ApiAppStateRoute: ApiAppStateRoute,
+  ApiCardsRoute: ApiCardsRoute,
+  ApiGenerateCardRoute: ApiGenerateCardRoute,
   ApiIntegrationCheckRoute: ApiIntegrationCheckRoute,
+  ApiResetAppRoute: ApiResetAppRoute,
+  ApiReviewCardRoute: ApiReviewCardRoute,
+  ApiSessionSummaryRoute: ApiSessionSummaryRoute,
+  ApiStarterDeckRoute: ApiStarterDeckRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

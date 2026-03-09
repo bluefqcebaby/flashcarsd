@@ -1,4 +1,10 @@
-import { createRootRoute, HeadContent, Scripts } from "@tanstack/react-router";
+import {
+	createRootRoute,
+	HeadContent,
+	Outlet,
+	Scripts,
+} from "@tanstack/react-router";
+import { useEffect } from "react";
 
 import appCss from "../styles.css?url";
 
@@ -13,7 +19,16 @@ export const Route = createRootRoute({
 				content: "width=device-width, initial-scale=1",
 			},
 			{
-				title: "AI Flashcards",
+				title: "Kana",
+			},
+			{
+				name: "theme-color",
+				content: "#0c0a14",
+			},
+			{
+				name: "description",
+				content:
+					"Playful vocabulary flashcards with local persistence and spaced repetition.",
 			},
 		],
 		links: [
@@ -23,16 +38,27 @@ export const Route = createRootRoute({
 			},
 		],
 	}),
+	component: RootComponent,
 	shellComponent: RootDocument,
 });
 
+function RootComponent() {
+	useEffect(() => {
+		if (import.meta.env.DEV) {
+			void import("react-grab");
+		}
+	}, []);
+
+	return <Outlet />;
+}
+
 function RootDocument({ children }: { children: React.ReactNode }) {
 	return (
-		<html lang="en">
+		<html lang="en" className="dark">
 			<head>
 				<HeadContent />
 			</head>
-			<body className="font-sans antialiased [overflow-wrap:anywhere]">
+			<body className="dark font-sans antialiased [overflow-wrap:anywhere]">
 				{children}
 				<Scripts />
 			</body>
