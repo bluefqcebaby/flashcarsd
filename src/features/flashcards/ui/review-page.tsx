@@ -1,5 +1,5 @@
 import { ArrowLeft, Flame, Sparkles, Trophy } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { ButtonLink } from "#/components/ui/button";
 import { Surface } from "#/components/ui/surface";
@@ -32,6 +32,11 @@ interface ReviewSessionState {
 	queueIds: string[];
 	results: SessionResult[];
 	completedAt: string | null;
+}
+
+interface ReviewSessionSeed {
+	languageId: string | null;
+	signature: string;
 }
 
 const RATING_META: Array<{
@@ -125,34 +130,54 @@ function buildStatusPill(card: Flashcard) {
 export function ReviewPage() {
 	const { activeLanguage, state, reviewCard, saveSessionSummary } =
 		useFlashcardsApp();
+	const activeLanguageId = activeLanguage?.id ?? null;
 	const [session, setSession] = useState<ReviewSessionState | null>(null);
 	const [flipped, setFlipped] = useState(false);
 	const [animClass, setAnimClass] = useState("animate-slide-in");
 	const [cardKey, setCardKey] = useState(0);
 	const [isSubmitting, setIsSubmitting] = useState(false);
 	const [savedSummaryId, setSavedSummaryId] = useState<string | null>(null);
+	const sessionSeedRef = useRef<ReviewSessionSeed>({
+		languageId: null,
+		signature: "",
+	});
 
-	const cards = getCardsForLanguage(state, activeLanguage?.id ?? null);
+	const cards = getCardsForLanguage(state, activeLanguageId);
 	const dueQueue = buildStudyQueue(cards, Date.now(), "due");
-	const dueQueueIds = useMemo(
-		() => dueQueue.map((card) => card.id),
-		[dueQueue],
-	);
+	const dueQueueIds = dueQueue.map((card) => card.id);
 	const dashboard = getDashboardSnapshot(state);
 
 	useEffect(() => {
-		setSession(dueQueueIds.length > 0 ? createSession(dueQueueIds) : null);
-		setFlipped(false);
-		setAnimClass("animate-slide-in");
-		setCardKey(0);
-		setSavedSummaryId(null);
-	}, [dueQueueIds]);
+		const nextSeed = {
+			languageId: activeLanguageId,
+			signature: JSON.stringify(dueQueueIds),
+		};
+		const previousSeed = sessionSeedRef.current;
+		const languageChanged = previousSeed.languageId !== nextSeed.languageId;
+		const shouldStartQueuedSession =
+			!session &&
+			dueQueueIds.length > 0 &&
+			previousSeed.signature !== nextSeed.signature;
 
-	useEffect(() => {
-		if (!session && dueQueue.length > 0) {
-			setSession(createSession(dueQueueIds));
+		if (languageChanged) {
+			sessionSeedRef.current = nextSeed;
+			setSession(dueQueueIds.length > 0 ? createSession(dueQueueIds) : null);
+			setFlipped(false);
+			setAnimClass("animate-slide-in");
+			setCardKey(0);
+			setSavedSummaryId(null);
+			return;
 		}
-	}, [dueQueue.length, dueQueueIds, session]);
+
+		if (shouldStartQueuedSession) {
+			sessionSeedRef.current = nextSeed;
+			setSession(createSession(dueQueueIds));
+			setFlipped(false);
+			setAnimClass("animate-slide-in");
+			setCardKey(0);
+			setSavedSummaryId(null);
+		}
+	}, [activeLanguageId, dueQueueIds, session]);
 
 	const currentCardId = session?.queueIds[0] ?? null;
 	const currentCard = cards.find((card) => card.id === currentCardId) ?? null;
