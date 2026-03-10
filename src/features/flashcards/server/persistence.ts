@@ -1,6 +1,10 @@
 import { asc, desc, eq, sql } from "drizzle-orm";
 
 import {
+	APP_SETTINGS_ROW_ID,
+	createDefaultAppSettings,
+} from "#/features/flashcards/model/app-state";
+import {
 	getComparablePrompt,
 	normalizeExampleStorage,
 	normalizePromptStorage,
@@ -10,6 +14,7 @@ import { reviewFlashcard } from "#/features/flashcards/model/srs";
 import type {
 	AddCardInput,
 	AppDataSnapshot,
+	AppSettings,
 	CompleteOnboardingInput,
 	Flashcard,
 	ReviewEvent,
@@ -19,6 +24,7 @@ import type {
 } from "#/features/flashcards/model/types";
 import { getDb } from "#/shared/db/client";
 import {
+	appSettings,
 	flashcards,
 	reviewEvents,
 	reviewSessionSummaries,
@@ -90,6 +96,27 @@ function mapSummary(
 			good: Number(row.ratingBreakdown?.good ?? 0),
 			excellent: Number(row.ratingBreakdown?.excellent ?? 0),
 		},
+	};
+}
+
+function mapAppSettings(row: typeof appSettings.$inferSelect): AppSettings {
+	return {
+		onboardingCompleted: row.onboardingCompleted,
+		activeLanguageId: row.activeLanguageId,
+		nativeLanguageId: row.nativeLanguageId,
+	};
+}
+
+function createAppSettingsRecord(settings: AppSettings) {
+	const now = new Date();
+
+	return {
+		id: APP_SETTINGS_ROW_ID,
+		onboardingCompleted: settings.onboardingCompleted,
+		activeLanguageId: settings.activeLanguageId,
+		nativeLanguageId: settings.nativeLanguageId,
+		createdAt: now,
+		updatedAt: now,
 	};
 }
 
@@ -171,8 +198,83 @@ async function upsertSummary(summary: ReviewSessionSummary | null) {
 		});
 }
 
+async function upsertAppSettingsRecord(settings: AppSettings) {
+	const record = createAppSettingsRecord(settings);
+	const db = getDb();
+
+	await db
+		.insert(appSettings)
+		.values(record)
+		.onConflictDoUpdate({
+			target: appSettings.id,
+			set: {
+				onboardingCompleted: record.onboardingCompleted,
+				activeLanguageId: record.activeLanguageId,
+				nativeLanguageId: record.nativeLanguageId,
+				updatedAt: record.updatedAt,
+			},
+		});
+}
+
 function createCardId() {
 	return `card-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+let appSettingsTableReady: Promise<void> | null = null;
+
+async function ensureAppSettingsTable() {
+	if (!appSettingsTableReady) {
+		appSettingsTableReady = (async () => {
+			const db = getDb();
+
+			await db.execute(sql`
+				CREATE TABLE IF NOT EXISTS "app_settings" (
+					"id" text PRIMARY KEY NOT NULL,
+					"onboarding_completed" boolean DEFAULT false NOT NULL,
+					"active_language_id" text,
+					"native_language_id" text NOT NULL,
+					"created_at" timestamp with time zone NOT NULL,
+					"updated_at" timestamp with time zone NOT NULL
+				)
+			`);
+		})();
+	}
+
+	await appSettingsTableReady;
+}
+
+export async function getAppSettings(): Promise<AppSettings> {
+	await ensureAppSettingsTable();
+
+	const db = getDb();
+	const [row] = await db
+		.select()
+		.from(appSettings)
+		.where(eq(appSettings.id, APP_SETTINGS_ROW_ID))
+		.limit(1);
+
+	if (row) {
+		return mapAppSettings(row);
+	}
+
+	const defaults = createDefaultAppSettings();
+	await upsertAppSettingsRecord(defaults);
+	return defaults;
+}
+
+export async function updateAppSettings(
+	input: Partial<AppSettings>,
+): Promise<AppSettings> {
+	await ensureAppSettingsTable();
+
+	const current = await getAppSettings();
+	const next: AppSettings = {
+		...current,
+		...input,
+	};
+
+	await upsertAppSettingsRecord(next);
+	return next;
 }
 
 export async function getAppDataSnapshot(): Promise<AppDataSnapshot> {
@@ -188,83 +290,6 @@ export async function getAppDataSnapshot(): Promise<AppDataSnapshot> {
 		reviewEvents: reviewEventRows.map(mapReviewEvent),
 		lastSessionSummary,
 	};
-}
-
-export async function importAppDataIfEmpty(snapshot: AppDataSnapshot) {
-	const db = getDb();
-	const [counts] = await db
-		.select({
-			cardCount: sql<number>`count(*)`,
-		})
-		.from(flashcards);
-
-	if (Number(counts?.cardCount ?? 0) > 0) {
-		return getAppDataSnapshot();
-	}
-
-	await db.transaction(async (tx) => {
-		if (snapshot.cards.length > 0) {
-			await tx.insert(flashcards).values(
-				snapshot.cards.map((card) => ({
-					id: card.id,
-					languageId: card.languageId,
-					prompt: card.prompt,
-					translation: card.translation,
-					example: card.example,
-					note: card.note,
-					tags: card.tags,
-					pronunciation: card.pronunciation,
-					difficulty: card.difficulty,
-					createdAt: new Date(card.createdAt),
-					updatedAt: new Date(card.updatedAt),
-					status: card.status,
-					dueAt: new Date(card.dueAt),
-					lastReviewedAt: card.lastReviewedAt
-						? new Date(card.lastReviewedAt)
-						: null,
-					intervalMinutes: card.intervalMinutes,
-					lastIntervalMinutes: card.lastIntervalMinutes,
-					ease: card.ease,
-					stepIndex: card.stepIndex,
-					lapses: card.lapses,
-					reviews: card.reviews,
-					correctReviews: card.correctReviews,
-					wrongReviews: card.wrongReviews,
-					streak: card.streak,
-				})),
-			);
-		}
-
-		if (snapshot.reviewEvents.length > 0) {
-			await tx.insert(reviewEvents).values(
-				snapshot.reviewEvents.map((event) => ({
-					id: event.id,
-					cardId: event.cardId,
-					languageId: event.languageId,
-					rating: event.rating,
-					reviewedAt: new Date(event.reviewedAt),
-					previousStatus: event.previousStatus,
-					nextStatus: event.nextStatus,
-					previousIntervalMinutes: event.previousIntervalMinutes,
-					nextIntervalMinutes: event.nextIntervalMinutes,
-				})),
-			);
-		}
-
-		if (snapshot.lastSessionSummary) {
-			await tx.insert(reviewSessionSummaries).values({
-				id: snapshot.lastSessionSummary.id,
-				languageId: snapshot.lastSessionSummary.languageId,
-				completedAt: new Date(snapshot.lastSessionSummary.completedAt),
-				reviewedCount: snapshot.lastSessionSummary.reviewedCount,
-				newlyLearnedCount: snapshot.lastSessionSummary.newlyLearnedCount,
-				correctCount: snapshot.lastSessionSummary.correctCount,
-				ratingBreakdown: snapshot.lastSessionSummary.ratingBreakdown,
-			});
-		}
-	});
-
-	return getAppDataSnapshot();
 }
 
 export async function addFlashcard(
@@ -483,11 +508,29 @@ export async function ensureStarterDeck(
 	return getAppDataSnapshot();
 }
 
-export async function resetAllFlashcardsData() {
+export async function resetFlashcardsApp() {
+	await ensureAppSettingsTable();
+
+	const defaults = createDefaultAppSettings();
 	const db = getDb();
+
 	await db.transaction(async (tx) => {
 		await tx.delete(reviewSessionSummaries);
 		await tx.delete(reviewEvents);
 		await tx.delete(flashcards);
+		await tx
+			.insert(appSettings)
+			.values(createAppSettingsRecord(defaults))
+			.onConflictDoUpdate({
+				target: appSettings.id,
+				set: {
+					onboardingCompleted: defaults.onboardingCompleted,
+					activeLanguageId: defaults.activeLanguageId,
+					nativeLanguageId: defaults.nativeLanguageId,
+					updatedAt: new Date(),
+				},
+			});
 	});
+
+	return defaults;
 }

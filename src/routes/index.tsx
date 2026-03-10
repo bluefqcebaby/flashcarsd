@@ -1,13 +1,13 @@
 import { createFileRoute, Navigate } from "@tanstack/react-router";
 
-import { useFlashcardsApp } from "#/features/flashcards/ui/flashcards-app-provider";
+import { useFlashcardsAppSettings } from "#/features/flashcards/ui/flashcards-app-provider";
 
 export const Route = createFileRoute("/")({
 	component: IndexRoute,
 });
 
 function IndexRoute() {
-	const { bootStatus, state } = useFlashcardsApp();
+	const { bootStatus, settings } = useFlashcardsAppSettings();
 
 	if (bootStatus === "booting") {
 		return null;
@@ -15,7 +15,7 @@ function IndexRoute() {
 
 	return (
 		<Navigate
-			to={state.settings.onboardingCompleted ? "/dashboard" : "/onboarding"}
+			to={settings.onboardingCompleted ? "/dashboard" : "/onboarding"}
 			replace
 		/>
 	);

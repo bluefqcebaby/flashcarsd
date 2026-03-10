@@ -1,5 +1,6 @@
 import { useNavigate } from "@tanstack/react-router";
 import { ArrowLeft, ArrowRight, BookOpen, Brain, Sparkles } from "lucide-react";
+import { useState } from "react";
 
 import { Button } from "#/components/ui/button";
 import { Surface } from "#/components/ui/surface";
@@ -10,7 +11,7 @@ import {
 	LANGUAGE_OPTIONS,
 	NATIVE_LANGUAGE_OPTIONS,
 } from "#/features/flashcards/model/languages";
-import { useFlashcardsApp } from "#/features/flashcards/ui/flashcards-app-provider";
+import { useFlashcardsAppSettings } from "#/features/flashcards/ui/flashcards-app-provider";
 import { cn } from "#/shared/lib/cn";
 
 const FEATURE_ITEMS = [
@@ -21,16 +22,13 @@ const FEATURE_ITEMS = [
 
 export function OnboardingPage() {
 	const navigate = useNavigate();
-	const { state, updateOnboardingDraft, completeOnboarding } =
-		useFlashcardsApp();
-	const step = Math.min(Math.max(state.onboardingDraft.step ?? 0, 0), 3);
-	const selectedLanguage = getLanguageOption(
-		state.onboardingDraft.targetLanguageId,
+	const { settings, completeOnboarding } = useFlashcardsAppSettings();
+	const [step, setStep] = useState(0);
+	const [targetLanguageId, setTargetLanguageId] = useState<string | null>(null);
+	const [nativeLanguageId, setNativeLanguageId] = useState(
+		settings.nativeLanguageId || DEFAULT_NATIVE_LANGUAGE_ID,
 	);
-
-	const setStep = (nextStep: number) => {
-		updateOnboardingDraft({ step: nextStep });
-	};
+	const selectedLanguage = getLanguageOption(targetLanguageId);
 
 	const finishOnboarding = async (startWithStarterDeck: boolean) => {
 		if (!selectedLanguage) {
@@ -39,8 +37,7 @@ export function OnboardingPage() {
 
 		await completeOnboarding({
 			targetLanguageId: selectedLanguage.id,
-			nativeLanguageId:
-				state.onboardingDraft.nativeLanguageId || DEFAULT_NATIVE_LANGUAGE_ID,
+			nativeLanguageId,
 			startWithStarterDeck,
 		});
 		navigate({ to: "/dashboard" });
@@ -128,15 +125,12 @@ export function OnboardingPage() {
 
 						<div className="mt-8 grid grid-cols-2 gap-3 sm:grid-cols-3">
 							{LANGUAGE_OPTIONS.map((language) => {
-								const selected =
-									state.onboardingDraft.targetLanguageId === language.id;
+								const selected = targetLanguageId === language.id;
 								return (
 									<button
 										key={language.id}
 										type="button"
-										onClick={() =>
-											updateOnboardingDraft({ targetLanguageId: language.id })
-										}
+										onClick={() => setTargetLanguageId(language.id)}
 										className={cn(
 											"rounded-2xl border border-[color:var(--border-subtle)] bg-[linear-gradient(165deg,var(--bg-elevated),var(--bg-surface))] px-4 py-4 text-left transition hover:-translate-y-0.5",
 											selected &&
@@ -185,15 +179,12 @@ export function OnboardingPage() {
 
 						<div className="mt-8 grid grid-cols-2 gap-3">
 							{NATIVE_LANGUAGE_OPTIONS.map((language) => {
-								const selected =
-									state.onboardingDraft.nativeLanguageId === language.id;
+								const selected = nativeLanguageId === language.id;
 								return (
 									<button
 										key={language.id}
 										type="button"
-										onClick={() =>
-											updateOnboardingDraft({ nativeLanguageId: language.id })
-										}
+										onClick={() => setNativeLanguageId(language.id)}
 										className={cn(
 											"rounded-2xl border border-[color:var(--border-subtle)] bg-[linear-gradient(165deg,var(--bg-elevated),var(--bg-surface))] px-4 py-4 text-left text-sm font-semibold transition hover:-translate-y-0.5",
 											selected &&
@@ -229,8 +220,8 @@ export function OnboardingPage() {
 						</h2>
 						<p className="mt-4 max-w-lg text-lg text-[var(--text-secondary)]">
 							Learning {selectedLanguage?.label ?? "your language"} with{" "}
-							{getNativeLanguageLabel(state.onboardingDraft.nativeLanguageId)}{" "}
-							translations. Want some starter vocabulary to try the app?
+							{getNativeLanguageLabel(nativeLanguageId)} translations. Want
+							some starter vocabulary to try the app?
 						</p>
 
 						<div className="mt-10 flex w-full max-w-sm flex-col gap-3">

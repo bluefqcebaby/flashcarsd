@@ -29,23 +29,6 @@ export interface LanguageOption {
 	palette: LanguagePalette;
 }
 
-export interface OnboardingDraft {
-	step: number;
-	targetLanguageId: string | null;
-	nativeLanguageId: string;
-	startWithStarterDeck: boolean;
-}
-
-export interface AddCardDraft {
-	prompt: string;
-	translation: string;
-	example: string;
-	note: string;
-	tags: string;
-	pronunciation: string;
-	difficulty: DifficultyLevel;
-}
-
 export interface Flashcard {
 	id: string;
 	languageId: string;
@@ -94,34 +77,20 @@ export interface ReviewSessionSummary {
 	ratingBreakdown: Record<ReviewRating, number>;
 }
 
-export interface LanguageProfile {
-	languageId: string;
-	nativeLanguageId: string;
-	createdAt: string;
-	starterDeckLoaded: boolean;
-}
-
 export interface AppSettings {
 	onboardingCompleted: boolean;
 	activeLanguageId: string | null;
 	nativeLanguageId: string;
 }
 
-export interface AppState {
-	version: number;
-	settings: AppSettings;
-	onboardingDraft: OnboardingDraft;
-	languageProfiles: Record<string, LanguageProfile>;
-	cards: Flashcard[];
-	reviewEvents: ReviewEvent[];
-	addCardDrafts: Record<string, AddCardDraft>;
-	lastSessionSummary: ReviewSessionSummary | null;
-}
-
 export interface AppDataSnapshot {
 	cards: Flashcard[];
 	reviewEvents: ReviewEvent[];
 	lastSessionSummary: ReviewSessionSummary | null;
+}
+
+export interface AppState extends AppDataSnapshot {
+	settings: AppSettings;
 }
 
 export interface AddCardInput {

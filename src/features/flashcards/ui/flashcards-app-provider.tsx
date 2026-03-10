@@ -1,26 +1,26 @@
-import { useEffect } from "react";
-import { create } from "zustand";
-import { persist } from "zustand/middleware";
+import {
+	QueryClient,
+	QueryClientProvider,
+	useMutation,
+	useQuery,
+	useQueryClient,
+} from "@tanstack/react-query";
+import {
+	createContext,
+	useContext,
+	useState,
+	type ReactNode,
+} from "react";
 
 import {
-	normalizeExampleStorage,
-	normalizePromptInput,
-} from "#/features/flashcards/model/display";
+	createDefaultAppSettings,
+	createEmptyAppDataSnapshot,
+} from "#/features/flashcards/model/app-state";
 import { getLanguageOption } from "#/features/flashcards/model/languages";
-import { ensureLanguageProfile } from "#/features/flashcards/model/seed";
-import {
-	APP_STATE_STORAGE_KEY,
-	APP_STATE_VERSION,
-	createDefaultOnboardingDraft,
-	createEmptyAppState,
-	EMPTY_ADD_CARD_DRAFT,
-	migrateAppState,
-} from "#/features/flashcards/model/storage";
 import type {
-	AddCardDraft,
 	AddCardInput,
 	AppDataSnapshot,
-	AppState,
+	AppSettings,
 	CompleteOnboardingInput,
 	ReviewRating,
 	ReviewResult,
@@ -34,10 +34,6 @@ interface ActivateLanguageInput {
 	includeStarterDeck?: boolean;
 }
 
-interface AddCardOptions {
-	allowDuplicate?: boolean;
-}
-
 interface AddCardResult {
 	ok: boolean;
 	cardId?: string;
@@ -45,34 +41,27 @@ interface AddCardResult {
 	duplicateCardId?: string;
 }
 
-interface FlashcardsAppStore extends AppState {
-	hydrated: boolean;
-	remoteLoaded: boolean;
-	remoteLoading: boolean;
-	setHydrated: (value: boolean) => void;
-	loadRemoteState: () => Promise<void>;
-	updateOnboardingDraft: (patch: Partial<AppState["onboardingDraft"]>) => void;
+interface FlashcardsSettingsContextValue {
+	settings: AppSettings;
+	settingsStatus: BootStatus;
 	completeOnboarding: (input: CompleteOnboardingInput) => Promise<void>;
 	activateLanguage: (input: ActivateLanguageInput) => Promise<void>;
-	setNativeLanguage: (languageId: string) => void;
-	updateAddCardDraft: (
-		languageId: string,
-		patch: Partial<AddCardDraft>,
-	) => void;
-	resetAddCardDraft: (languageId: string) => void;
-	addCard: (
-		input: AddCardInput,
-		options?: AddCardOptions,
-	) => Promise<AddCardResult>;
-	reviewCard: (
-		cardId: string,
-		rating: ReviewRating,
-	) => Promise<ReviewResult | null>;
-	saveSessionSummary: (summary: ReviewSessionSummary) => Promise<void>;
+	setNativeLanguage: (languageId: string) => Promise<void>;
 	resetApp: () => Promise<void>;
 }
 
-const baseState = createEmptyAppState();
+const SETTINGS_QUERY_KEY = ["app-settings"] as const;
+const APP_DATA_QUERY_KEY = ["app-data"] as const;
+
+const SETTINGS_STALE_TIME = 30_000;
+const APP_DATA_STALE_TIME = 10_000;
+
+const FlashcardsSettingsContext =
+	createContext<FlashcardsSettingsContextValue | null>(null);
+
+function isClientRuntime() {
+	return typeof window !== "undefined";
+}
 
 async function readJson<T>(response: Response): Promise<T> {
 	if (!response.ok) {
@@ -83,484 +72,327 @@ async function readJson<T>(response: Response): Promise<T> {
 	return (await response.json()) as T;
 }
 
-function applyRemoteSnapshot(
-	current: FlashcardsAppStore,
-	snapshot: AppDataSnapshot,
-) {
+async function fetchAppSettings() {
+	return readJson<AppSettings>(await fetch("/api/settings"));
+}
+
+async function patchAppSettings(input: Partial<AppSettings>) {
+	return readJson<AppSettings>(
+		await fetch("/api/settings", {
+			method: "PATCH",
+			headers: {
+				"content-type": "application/json",
+			},
+			body: JSON.stringify(input),
+		}),
+	);
+}
+
+async function fetchAppData() {
+	return readJson<AppDataSnapshot>(await fetch("/api/app-state"));
+}
+
+async function ensureStarterDeck(input: CompleteOnboardingInput) {
+	return readJson<AppDataSnapshot>(
+		await fetch("/api/starter-deck", {
+			method: "POST",
+			headers: {
+				"content-type": "application/json",
+			},
+			body: JSON.stringify(input),
+		}),
+	);
+}
+
+async function createCard(input: AddCardInput) {
+	const response = await fetch("/api/cards", {
+		method: "POST",
+		headers: {
+			"content-type": "application/json",
+		},
+		body: JSON.stringify(input),
+	});
+	const result = (await response.json()) as
+		| { ok: true; card: AppDataSnapshot["cards"][number] }
+		| { ok: false; reason: "duplicate"; duplicateCardId: string };
+
+	if (!response.ok && result.ok !== false) {
+		throw new Error("Could not save card.");
+	}
+
+	return result;
+}
+
+async function submitCardReview(input: {
+	cardId: string;
+	rating: ReviewRating;
+}) {
+	return readJson<ReviewResult>(
+		await fetch("/api/review-card", {
+			method: "POST",
+			headers: {
+				"content-type": "application/json",
+			},
+			body: JSON.stringify(input),
+		}),
+	);
+}
+
+async function submitSessionSummary(summary: ReviewSessionSummary) {
+	return readJson<ReviewSessionSummary>(
+		await fetch("/api/session-summary", {
+			method: "POST",
+			headers: {
+				"content-type": "application/json",
+			},
+			body: JSON.stringify(summary),
+		}),
+	);
+}
+
+async function resetFlashcardsApp() {
+	return readJson<{ ok: true; settings: AppSettings }>(
+		await fetch("/api/reset-app", {
+			method: "POST",
+		}),
+	);
+}
+
+function FlashcardsSettingsProvider({ children }: { children: ReactNode }) {
+	const queryClient = useQueryClient();
+	const settingsQuery = useQuery({
+		queryKey: SETTINGS_QUERY_KEY,
+		queryFn: fetchAppSettings,
+		enabled: isClientRuntime(),
+		staleTime: SETTINGS_STALE_TIME,
+	});
+	const updateSettingsMutation = useMutation({
+		mutationFn: patchAppSettings,
+		onSuccess: (settings) => {
+			queryClient.setQueryData(SETTINGS_QUERY_KEY, settings);
+		},
+	});
+	const starterDeckMutation = useMutation({
+		mutationFn: ensureStarterDeck,
+		onSuccess: (snapshot) => {
+			queryClient.setQueryData(APP_DATA_QUERY_KEY, snapshot);
+		},
+	});
+	const resetMutation = useMutation({
+		mutationFn: resetFlashcardsApp,
+		onSuccess: ({ settings }) => {
+			queryClient.setQueryData(SETTINGS_QUERY_KEY, settings);
+			queryClient.setQueryData(APP_DATA_QUERY_KEY, createEmptyAppDataSnapshot());
+		},
+	});
+
+	if (settingsQuery.error) {
+		throw settingsQuery.error;
+	}
+
+	const settings = settingsQuery.data ?? createDefaultAppSettings();
+
+	const value: FlashcardsSettingsContextValue = {
+		settings,
+		settingsStatus: settingsQuery.isSuccess ? "ready" : "booting",
+		completeOnboarding: async (input) => {
+			await updateSettingsMutation.mutateAsync({
+				onboardingCompleted: true,
+				activeLanguageId: input.targetLanguageId,
+				nativeLanguageId: input.nativeLanguageId,
+			});
+
+			if (input.startWithStarterDeck) {
+				await starterDeckMutation.mutateAsync(input);
+			}
+		},
+		activateLanguage: async ({ languageId, includeStarterDeck }) => {
+			await updateSettingsMutation.mutateAsync({
+				activeLanguageId: languageId,
+			});
+
+			if (includeStarterDeck) {
+				await starterDeckMutation.mutateAsync({
+					targetLanguageId: languageId,
+					nativeLanguageId: settings.nativeLanguageId,
+					startWithStarterDeck: true,
+				});
+			}
+		},
+		setNativeLanguage: async (languageId) => {
+			await updateSettingsMutation.mutateAsync({
+				nativeLanguageId: languageId,
+			});
+		},
+		resetApp: async () => {
+			await resetMutation.mutateAsync();
+		},
+	};
+
+	return (
+		<FlashcardsSettingsContext.Provider value={value}>
+			{children}
+		</FlashcardsSettingsContext.Provider>
+	);
+}
+
+export function FlashcardsAppProvider({ children }: { children: ReactNode }) {
+	const [queryClient] = useState(
+		() =>
+			new QueryClient({
+				defaultOptions: {
+					queries: {
+						retry: 1,
+						refetchOnWindowFocus: false,
+					},
+				},
+			}),
+	);
+
+	return (
+		<QueryClientProvider client={queryClient}>
+			<FlashcardsSettingsProvider>{children}</FlashcardsSettingsProvider>
+		</QueryClientProvider>
+	);
+}
+
+function useFlashcardsSettings() {
+	const context = useContext(FlashcardsSettingsContext);
+
+	if (!context) {
+		throw new Error(
+			"useFlashcardsApp must be used within FlashcardsAppProvider.",
+		);
+	}
+
+	return context;
+}
+
+export function useFlashcardsAppSettings() {
+	const {
+		settings,
+		settingsStatus,
+		completeOnboarding,
+		activateLanguage,
+		setNativeLanguage,
+		resetApp,
+	} = useFlashcardsSettings();
+
 	return {
-		...current,
-		cards: snapshot.cards,
-		reviewEvents: snapshot.reviewEvents,
-		lastSessionSummary: snapshot.lastSessionSummary,
-		remoteLoaded: true,
-		remoteLoading: false,
+		settings,
+		bootStatus: settingsStatus,
+		completeOnboarding,
+		activateLanguage,
+		setNativeLanguage,
+		resetApp,
+		activeLanguage: getLanguageOption(settings.activeLanguageId),
 	};
 }
 
-const persistedStorage = {
-	getItem: (name: string) => {
-		if (typeof window === "undefined") {
-			return null;
-		}
-
-		const raw = window.localStorage.getItem(name);
-		if (!raw) {
-			return null;
-		}
-
-		try {
-			const parsed = JSON.parse(raw);
-			if (
-				parsed &&
-				typeof parsed === "object" &&
-				"state" in parsed &&
-				"version" in parsed
-			) {
-				return parsed;
+export function useFlashcardsApp() {
+	const queryClient = useQueryClient();
+	const {
+		settings,
+		bootStatus,
+		completeOnboarding,
+		activateLanguage,
+		setNativeLanguage,
+		resetApp,
+		activeLanguage,
+	} = useFlashcardsAppSettings();
+	const appDataQuery = useQuery({
+		queryKey: APP_DATA_QUERY_KEY,
+		queryFn: fetchAppData,
+		enabled: isClientRuntime(),
+		staleTime: APP_DATA_STALE_TIME,
+	});
+	const addCardMutation = useMutation({
+		mutationFn: createCard,
+		onSuccess: (result) => {
+			if (!result.ok) {
+				return;
 			}
 
-			return {
-				state: migrateAppState(parsed),
-				version: APP_STATE_VERSION,
-			};
-		} catch {
-			return {
-				state: createEmptyAppState(),
-				version: APP_STATE_VERSION,
-			};
-		}
-	},
-	setItem: (name: string, value: unknown) => {
-		if (typeof window === "undefined") {
-			return;
-		}
-
-		window.localStorage.setItem(name, JSON.stringify(value));
-	},
-	removeItem: (name: string) => {
-		if (typeof window === "undefined") {
-			return;
-		}
-
-		window.localStorage.removeItem(name);
-	},
-};
-
-export const useFlashcardsStore = create<FlashcardsAppStore>()(
-	persist(
-		(set, get) => ({
-			...baseState,
-			hydrated: false,
-			remoteLoaded: false,
-			remoteLoading: false,
-			setHydrated: (value) => set({ hydrated: value }),
-			loadRemoteState: async () => {
-				const current = get();
-				if (
-					!current.hydrated ||
-					current.remoteLoaded ||
-					current.remoteLoading
-				) {
-					return;
-				}
-
-				set({ remoteLoading: true });
-
-				try {
-					let snapshot = await readJson<AppDataSnapshot>(
-						await fetch("/api/app-state"),
-					);
-
-					if (
-						snapshot.cards.length === 0 &&
-						(current.cards.length > 0 ||
-							current.reviewEvents.length > 0 ||
-							current.lastSessionSummary)
-					) {
-						snapshot = await readJson<AppDataSnapshot>(
-							await fetch("/api/app-state", {
-								method: "POST",
-								headers: {
-									"content-type": "application/json",
-								},
-								body: JSON.stringify({
-									cards: current.cards,
-									reviewEvents: current.reviewEvents,
-									lastSessionSummary: current.lastSessionSummary,
-								} satisfies AppDataSnapshot),
-							}),
-						);
-					}
-
-					set((state) => applyRemoteSnapshot(state, snapshot));
-				} catch (error) {
-					console.error(
-						"[flashcards-store] Failed to load remote state",
-						error,
-					);
-					set({ remoteLoaded: true, remoteLoading: false });
-				}
-			},
-			updateOnboardingDraft: (patch) =>
-				set((current) => ({
-					onboardingDraft: {
-						...current.onboardingDraft,
-						...patch,
-					},
-				})),
-			completeOnboarding: async (input) => {
-				set((current) => {
-					const nextState = ensureLanguageProfile(
-						current,
-						input.targetLanguageId,
-						input.nativeLanguageId,
-					);
-
+			queryClient.setQueryData(
+				APP_DATA_QUERY_KEY,
+				(current: AppDataSnapshot | undefined) => {
+					const snapshot = current ?? createEmptyAppDataSnapshot();
 					return {
-						...nextState,
-						settings: {
-							onboardingCompleted: true,
-							activeLanguageId: input.targetLanguageId,
-							nativeLanguageId: input.nativeLanguageId,
-						},
-						onboardingDraft: {
-							...createDefaultOnboardingDraft(),
-							targetLanguageId: input.targetLanguageId,
-							nativeLanguageId: input.nativeLanguageId,
-							startWithStarterDeck: input.startWithStarterDeck,
-						},
+						...snapshot,
+						cards: [...snapshot.cards, result.card],
 					};
-				});
-
-				if (!input.startWithStarterDeck) {
-					return;
-				}
-
-				try {
-					const snapshot = await readJson<AppDataSnapshot>(
-						await fetch("/api/starter-deck", {
-							method: "POST",
-							headers: {
-								"content-type": "application/json",
-							},
-							body: JSON.stringify(input),
-						}),
-					);
-
-					set((current) => ({
-						...applyRemoteSnapshot(current, snapshot),
-						languageProfiles: {
-							...current.languageProfiles,
-							[input.targetLanguageId]: {
-								...(current.languageProfiles[input.targetLanguageId] ?? {
-									languageId: input.targetLanguageId,
-									nativeLanguageId: input.nativeLanguageId,
-									createdAt: new Date().toISOString(),
-									starterDeckLoaded: false,
-								}),
-								nativeLanguageId: input.nativeLanguageId,
-								starterDeckLoaded: true,
-							},
-						},
-					}));
-				} catch (error) {
-					console.error(
-						"[flashcards-store] Failed to seed starter deck",
-						error,
-					);
-				}
-			},
-			activateLanguage: async (input) => {
-				set((current) => {
-					const nativeLanguageId = current.settings.nativeLanguageId;
-					const nextState = ensureLanguageProfile(
-						current,
-						input.languageId,
-						nativeLanguageId,
-					);
-
-					return {
-						...nextState,
-						settings: {
-							...nextState.settings,
-							activeLanguageId: input.languageId,
-							nativeLanguageId,
-						},
-					};
-				});
-
-				if (!input.includeStarterDeck) {
-					return;
-				}
-
-				const nativeLanguageId = get().settings.nativeLanguageId;
-
-				try {
-					const snapshot = await readJson<AppDataSnapshot>(
-						await fetch("/api/starter-deck", {
-							method: "POST",
-							headers: {
-								"content-type": "application/json",
-							},
-							body: JSON.stringify({
-								targetLanguageId: input.languageId,
-								nativeLanguageId,
-								startWithStarterDeck: true,
-							} satisfies CompleteOnboardingInput),
-						}),
-					);
-
-					set((current) => ({
-						...applyRemoteSnapshot(current, snapshot),
-						languageProfiles: {
-							...current.languageProfiles,
-							[input.languageId]: {
-								...(current.languageProfiles[input.languageId] ?? {
-									languageId: input.languageId,
-									nativeLanguageId,
-									createdAt: new Date().toISOString(),
-									starterDeckLoaded: false,
-								}),
-								nativeLanguageId,
-								starterDeckLoaded: true,
-							},
-						},
-					}));
-				} catch (error) {
-					console.error(
-						"[flashcards-store] Failed to seed starter deck",
-						error,
-					);
-				}
-			},
-			setNativeLanguage: (languageId) =>
-				set((current) => {
-					const activeLanguageId = current.settings.activeLanguageId;
-					return {
-						settings: {
-							...current.settings,
-							nativeLanguageId: languageId,
-						},
-						onboardingDraft: {
-							...current.onboardingDraft,
-							nativeLanguageId: languageId,
-						},
-						languageProfiles: activeLanguageId
-							? {
-									...current.languageProfiles,
-									[activeLanguageId]: current.languageProfiles[activeLanguageId]
-										? {
-												...current.languageProfiles[activeLanguageId],
-												nativeLanguageId: languageId,
-											}
-										: current.languageProfiles[activeLanguageId],
-								}
-							: current.languageProfiles,
-					};
-				}),
-			updateAddCardDraft: (languageId, patch) =>
-				set((current) => ({
-					addCardDrafts: {
-						...current.addCardDrafts,
-						[languageId]: {
-							...(current.addCardDrafts[languageId] ?? EMPTY_ADD_CARD_DRAFT),
-							...patch,
-							...(typeof patch.prompt === "string"
-								? { prompt: normalizePromptInput(languageId, patch.prompt) }
-								: {}),
-							...(typeof patch.example === "string"
-								? {
-										example: normalizeExampleStorage(languageId, patch.example),
-									}
-								: {}),
-						},
-					},
-				})),
-			resetAddCardDraft: (languageId) =>
-				set((current) => ({
-					addCardDrafts: {
-						...current.addCardDrafts,
-						[languageId]: EMPTY_ADD_CARD_DRAFT,
-					},
-				})),
-			addCard: async (input) => {
-				const response = await fetch("/api/cards", {
-					method: "POST",
-					headers: {
-						"content-type": "application/json",
-					},
-					body: JSON.stringify(input),
-				});
-
-				const result = (await response.json()) as
-					| { ok: true; card: AppState["cards"][number] }
-					| { ok: false; reason: "duplicate"; duplicateCardId: string };
-
-				if (!response.ok && result.ok !== false) {
-					throw new Error("Could not save card.");
-				}
-
-				if (!result.ok) {
-					return result;
-				}
-
-				set((state) => ({
-					...ensureLanguageProfile(
-						state,
-						input.languageId,
-						state.settings.nativeLanguageId,
-					),
-					cards: [...state.cards, result.card],
-					addCardDrafts: {
-						...state.addCardDrafts,
-						[input.languageId]: EMPTY_ADD_CARD_DRAFT,
-					},
-				}));
-
-				return {
-					ok: true,
-					cardId: result.card.id,
-				};
-			},
-			reviewCard: async (cardId, rating) => {
-				const result = await readJson<ReviewResult>(
-					await fetch("/api/review-card", {
-						method: "POST",
-						headers: {
-							"content-type": "application/json",
-						},
-						body: JSON.stringify({ cardId, rating }),
-					}),
-				);
-
-				set((current) => ({
-					cards: current.cards.map((card) =>
-						card.id === cardId ? result.card : card,
-					),
-					reviewEvents: [...current.reviewEvents, result.event],
-				}));
-
-				return result;
-			},
-			saveSessionSummary: async (summary) => {
-				await readJson<ReviewSessionSummary>(
-					await fetch("/api/session-summary", {
-						method: "POST",
-						headers: {
-							"content-type": "application/json",
-						},
-						body: JSON.stringify(summary),
-					}),
-				);
-
-				set({ lastSessionSummary: summary });
-			},
-			resetApp: async () => {
-				await readJson<{ ok: true }>(
-					await fetch("/api/reset-app", {
-						method: "POST",
-					}),
-				);
-
-				set({
-					...createEmptyAppState(),
-					hydrated: true,
-					remoteLoaded: true,
-					remoteLoading: false,
-				});
-			},
-		}),
-		{
-			name: APP_STATE_STORAGE_KEY,
-			version: APP_STATE_VERSION,
-			storage: persistedStorage,
-			partialize: (state) => ({
-				version: state.version,
-				settings: state.settings,
-				onboardingDraft: state.onboardingDraft,
-				languageProfiles: state.languageProfiles,
-				addCardDrafts: state.addCardDrafts,
-			}),
-			migrate: (persistedState) => migrateAppState(persistedState),
-			onRehydrateStorage: () => (state) => {
-				state?.setHydrated(true);
-			},
+				},
+			);
 		},
-	),
-);
+	});
+	const reviewCardMutation = useMutation({
+		mutationFn: submitCardReview,
+		onSuccess: (result, variables) => {
+			queryClient.setQueryData(
+				APP_DATA_QUERY_KEY,
+				(current: AppDataSnapshot | undefined) => {
+					const snapshot = current ?? createEmptyAppDataSnapshot();
+					return {
+						...snapshot,
+						cards: snapshot.cards.map((card) =>
+							card.id === variables.cardId ? result.card : card,
+						),
+						reviewEvents: [...snapshot.reviewEvents, result.event],
+					};
+				},
+			);
+		},
+	});
+	const sessionSummaryMutation = useMutation({
+		mutationFn: submitSessionSummary,
+		onSuccess: (summary) => {
+			queryClient.setQueryData(
+				APP_DATA_QUERY_KEY,
+				(current: AppDataSnapshot | undefined) => ({
+					...(current ?? createEmptyAppDataSnapshot()),
+					lastSessionSummary: summary,
+				}),
+			);
+		},
+	});
 
-export function useFlashcardsApp() {
-	const version = useFlashcardsStore((store) => store.version);
-	const settings = useFlashcardsStore((store) => store.settings);
-	const onboardingDraft = useFlashcardsStore((store) => store.onboardingDraft);
-	const languageProfiles = useFlashcardsStore(
-		(store) => store.languageProfiles,
-	);
-	const cards = useFlashcardsStore((store) => store.cards);
-	const reviewEvents = useFlashcardsStore((store) => store.reviewEvents);
-	const addCardDrafts = useFlashcardsStore((store) => store.addCardDrafts);
-	const lastSessionSummary = useFlashcardsStore(
-		(store) => store.lastSessionSummary,
-	);
-	const hydrated = useFlashcardsStore((store) => store.hydrated);
-	const remoteLoaded = useFlashcardsStore((store) => store.remoteLoaded);
-	const remoteLoading = useFlashcardsStore((store) => store.remoteLoading);
-	const loadRemoteState = useFlashcardsStore((store) => store.loadRemoteState);
-	const updateOnboardingDraft = useFlashcardsStore(
-		(store) => store.updateOnboardingDraft,
-	);
-	const completeOnboarding = useFlashcardsStore(
-		(store) => store.completeOnboarding,
-	);
-	const activateLanguage = useFlashcardsStore(
-		(store) => store.activateLanguage,
-	);
-	const updateAddCardDraft = useFlashcardsStore(
-		(store) => store.updateAddCardDraft,
-	);
-	const setNativeLanguage = useFlashcardsStore(
-		(store) => store.setNativeLanguage,
-	);
-	const resetAddCardDraft = useFlashcardsStore(
-		(store) => store.resetAddCardDraft,
-	);
-	const addCard = useFlashcardsStore((store) => store.addCard);
-	const reviewCard = useFlashcardsStore((store) => store.reviewCard);
-	const saveSessionSummary = useFlashcardsStore(
-		(store) => store.saveSessionSummary,
-	);
-	const resetApp = useFlashcardsStore((store) => store.resetApp);
+	if (appDataQuery.error) {
+		throw appDataQuery.error;
+	}
 
-	useEffect(() => {
-		if (hydrated && !remoteLoaded && !remoteLoading) {
-			void loadRemoteState();
-		}
-	}, [hydrated, loadRemoteState, remoteLoaded, remoteLoading]);
-
+	const snapshot = appDataQuery.data ?? createEmptyAppDataSnapshot();
 	const state = {
-		version,
 		settings,
-		onboardingDraft,
-		languageProfiles,
-		cards,
-		reviewEvents,
-		addCardDrafts,
-		lastSessionSummary,
+		...snapshot,
 	};
 
 	return {
 		state,
-		bootStatus: (hydrated && remoteLoaded ? "ready" : "booting") as BootStatus,
-		updateOnboardingDraft,
+		bootStatus:
+			bootStatus === "ready" && appDataQuery.isSuccess
+				? ("ready" as BootStatus)
+				: ("booting" as BootStatus),
 		completeOnboarding,
 		activateLanguage,
 		setNativeLanguage,
-		updateAddCardDraft,
-		resetAddCardDraft,
-		addCard,
-		reviewCard,
-		saveSessionSummary,
+		addCard: async (input: AddCardInput): Promise<AddCardResult> => {
+			const result = await addCardMutation.mutateAsync(input);
+
+			if (!result.ok) {
+				return result;
+			}
+
+			return {
+				ok: true,
+				cardId: result.card.id,
+			};
+		},
+		reviewCard: async (cardId: string, rating: ReviewRating) =>
+			reviewCardMutation.mutateAsync({ cardId, rating }),
+		saveSessionSummary: async (summary: ReviewSessionSummary) => {
+			await sessionSummaryMutation.mutateAsync(summary);
+		},
 		resetApp,
-		activeLanguage: getLanguageOption(state.settings.activeLanguageId),
+		activeLanguage,
 	};
 }

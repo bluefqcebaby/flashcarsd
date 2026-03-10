@@ -2,7 +2,7 @@ import { Navigate } from "@tanstack/react-router";
 import type { ReactNode } from "react";
 
 import { Surface } from "#/components/ui/surface";
-import { useFlashcardsApp } from "#/features/flashcards/ui/flashcards-app-provider";
+import { useFlashcardsAppSettings } from "#/features/flashcards/ui/flashcards-app-provider";
 
 function BootScreen() {
 	return (
@@ -30,17 +30,17 @@ export function AppRouteGate({
 	children: ReactNode;
 	requireOnboarding?: boolean;
 }) {
-	const { bootStatus, state } = useFlashcardsApp();
+	const { bootStatus, settings } = useFlashcardsAppSettings();
 
 	if (bootStatus === "booting") {
 		return <BootScreen />;
 	}
 
-	if (requireOnboarding && !state.settings.onboardingCompleted) {
+	if (requireOnboarding && !settings.onboardingCompleted) {
 		return <Navigate to="/onboarding" replace />;
 	}
 
-	if (!requireOnboarding && state.settings.onboardingCompleted) {
+	if (!requireOnboarding && settings.onboardingCompleted) {
 		return <Navigate to="/dashboard" replace />;
 	}
 

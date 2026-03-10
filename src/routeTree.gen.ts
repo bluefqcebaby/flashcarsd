@@ -16,6 +16,7 @@ import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as AddCardRouteImport } from './routes/add-card'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ApiStarterDeckRouteImport } from './routes/api/starter-deck'
+import { Route as ApiSettingsRouteImport } from './routes/api/settings'
 import { Route as ApiSessionSummaryRouteImport } from './routes/api/session-summary'
 import { Route as ApiReviewCardRouteImport } from './routes/api/review-card'
 import { Route as ApiResetAppRouteImport } from './routes/api/reset-app'
@@ -57,6 +58,11 @@ const IndexRoute = IndexRouteImport.update({
 const ApiStarterDeckRoute = ApiStarterDeckRouteImport.update({
   id: '/api/starter-deck',
   path: '/api/starter-deck',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiSettingsRoute = ApiSettingsRouteImport.update({
+  id: '/api/settings',
+  path: '/api/settings',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiSessionSummaryRoute = ApiSessionSummaryRouteImport.update({
@@ -109,6 +115,7 @@ export interface FileRoutesByFullPath {
   '/api/reset-app': typeof ApiResetAppRoute
   '/api/review-card': typeof ApiReviewCardRoute
   '/api/session-summary': typeof ApiSessionSummaryRoute
+  '/api/settings': typeof ApiSettingsRoute
   '/api/starter-deck': typeof ApiStarterDeckRoute
 }
 export interface FileRoutesByTo {
@@ -125,6 +132,7 @@ export interface FileRoutesByTo {
   '/api/reset-app': typeof ApiResetAppRoute
   '/api/review-card': typeof ApiReviewCardRoute
   '/api/session-summary': typeof ApiSessionSummaryRoute
+  '/api/settings': typeof ApiSettingsRoute
   '/api/starter-deck': typeof ApiStarterDeckRoute
 }
 export interface FileRoutesById {
@@ -142,6 +150,7 @@ export interface FileRoutesById {
   '/api/reset-app': typeof ApiResetAppRoute
   '/api/review-card': typeof ApiReviewCardRoute
   '/api/session-summary': typeof ApiSessionSummaryRoute
+  '/api/settings': typeof ApiSettingsRoute
   '/api/starter-deck': typeof ApiStarterDeckRoute
 }
 export interface FileRouteTypes {
@@ -160,6 +169,7 @@ export interface FileRouteTypes {
     | '/api/reset-app'
     | '/api/review-card'
     | '/api/session-summary'
+    | '/api/settings'
     | '/api/starter-deck'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -176,6 +186,7 @@ export interface FileRouteTypes {
     | '/api/reset-app'
     | '/api/review-card'
     | '/api/session-summary'
+    | '/api/settings'
     | '/api/starter-deck'
   id:
     | '__root__'
@@ -192,6 +203,7 @@ export interface FileRouteTypes {
     | '/api/reset-app'
     | '/api/review-card'
     | '/api/session-summary'
+    | '/api/settings'
     | '/api/starter-deck'
   fileRoutesById: FileRoutesById
 }
@@ -209,6 +221,7 @@ export interface RootRouteChildren {
   ApiResetAppRoute: typeof ApiResetAppRoute
   ApiReviewCardRoute: typeof ApiReviewCardRoute
   ApiSessionSummaryRoute: typeof ApiSessionSummaryRoute
+  ApiSettingsRoute: typeof ApiSettingsRoute
   ApiStarterDeckRoute: typeof ApiStarterDeckRoute
 }
 
@@ -261,6 +274,13 @@ declare module '@tanstack/react-router' {
       path: '/api/starter-deck'
       fullPath: '/api/starter-deck'
       preLoaderRoute: typeof ApiStarterDeckRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/settings': {
+      id: '/api/settings'
+      path: '/api/settings'
+      fullPath: '/api/settings'
+      preLoaderRoute: typeof ApiSettingsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/session-summary': {
@@ -329,6 +349,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiResetAppRoute: ApiResetAppRoute,
   ApiReviewCardRoute: ApiReviewCardRoute,
   ApiSessionSummaryRoute: ApiSessionSummaryRoute,
+  ApiSettingsRoute: ApiSettingsRoute,
   ApiStarterDeckRoute: ApiStarterDeckRoute,
 }
 export const routeTree = rootRouteImport

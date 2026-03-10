@@ -1,8 +1,6 @@
 import type {
-	AppState,
 	CompleteOnboardingInput,
 	Flashcard,
-	LanguageProfile,
 	ReviewEvent,
 	ReviewSessionSummary,
 } from "#/features/flashcards/model/types";
@@ -588,40 +586,10 @@ export function buildStarterDeck(
 	const cards = templates.map((template, index) =>
 		createCard(input.targetLanguageId, template, now, index),
 	);
-	const profile: LanguageProfile = {
-		languageId: input.targetLanguageId,
-		nativeLanguageId: input.nativeLanguageId,
-		createdAt: new Date(now).toISOString(),
-		starterDeckLoaded: true,
-	};
 
 	return {
-		profile,
 		cards,
 		reviewEvents: createReviewEvents(input.targetLanguageId, cards, now),
 		lastSessionSummary: createSessionSummary(input.targetLanguageId, 4, now),
-	};
-}
-
-export function ensureLanguageProfile(
-	state: AppState,
-	languageId: string,
-	nativeLanguageId: string,
-): AppState {
-	if (state.languageProfiles[languageId]) {
-		return state;
-	}
-
-	return {
-		...state,
-		languageProfiles: {
-			...state.languageProfiles,
-			[languageId]: {
-				languageId,
-				nativeLanguageId,
-				createdAt: new Date().toISOString(),
-				starterDeckLoaded: false,
-			},
-		},
 	};
 }

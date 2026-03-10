@@ -11,11 +11,20 @@ import {
 	normalizeExampleStorage,
 	normalizePromptInput,
 } from "#/features/flashcards/model/display";
-import { EMPTY_ADD_CARD_DRAFT } from "#/features/flashcards/model/storage";
 import type { CardAssistSuggestion } from "#/features/flashcards/model/types";
 import { AppShell } from "#/features/flashcards/ui/app-shell";
 import { useFlashcardsApp } from "#/features/flashcards/ui/flashcards-app-provider";
 import { cn } from "#/shared/lib/cn";
+
+const EMPTY_DRAFT = {
+	prompt: "",
+	translation: "",
+	example: "",
+	note: "",
+	tags: "",
+	pronunciation: "",
+	difficulty: "medium" as const,
+};
 
 function parseTags(value: string) {
 	return value
@@ -25,13 +34,8 @@ function parseTags(value: string) {
 }
 
 export function AddCardPage() {
-	const {
-		activeLanguage,
-		state,
-		updateAddCardDraft,
-		resetAddCardDraft,
-		addCard,
-	} = useFlashcardsApp();
+	const { activeLanguage, state, addCard } = useFlashcardsApp();
+	const [draft, setDraft] = useState(EMPTY_DRAFT);
 	const [isGenerating, setIsGenerating] = useState(false);
 	const [sessionAddedCount, setSessionAddedCount] = useState(0);
 	const [status, setStatus] = useState<{
@@ -39,10 +43,6 @@ export function AddCardPage() {
 		message: string;
 	} | null>(null);
 	const [generationNote, setGenerationNote] = useState<string | null>(null);
-
-	const draft =
-		(activeLanguage && state.addCardDrafts[activeLanguage.id]) ??
-		EMPTY_ADD_CARD_DRAFT;
 	const tags = useMemo(() => parseTags(draft.tags), [draft.tags]);
 	const duplicateCard = useMemo(() => {
 		if (!activeLanguage || !draft.prompt.trim()) {
@@ -72,6 +72,7 @@ export function AddCardPage() {
 			return;
 		}
 
+		setDraft(EMPTY_DRAFT);
 		setStatus(null);
 		setGenerationNote(null);
 	}, [activeLanguage?.id]);
@@ -81,7 +82,18 @@ export function AddCardPage() {
 	}
 
 	const updateDraft = (patch: Partial<typeof draft>) => {
-		updateAddCardDraft(activeLanguage.id, patch);
+		setDraft((current) => ({
+			...current,
+			...patch,
+			...(typeof patch.prompt === "string"
+				? { prompt: normalizePromptInput(activeLanguage.id, patch.prompt) }
+				: {}),
+			...(typeof patch.example === "string"
+				? {
+						example: normalizeExampleStorage(activeLanguage.id, patch.example),
+					}
+				: {}),
+		}));
 	};
 
 	const generateDraft = async () => {
@@ -178,7 +190,7 @@ export function AddCardPage() {
 				return;
 			}
 
-			resetAddCardDraft(activeLanguage.id);
+			setDraft(EMPTY_DRAFT);
 			setGenerationNote(null);
 			setSessionAddedCount((count) => count + 1);
 			setStatus({

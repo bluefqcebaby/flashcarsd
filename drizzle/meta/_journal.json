@@ -15,6 +15,13 @@
       "when": 1773051600000,
       "tag": "0001_flashcards_persistence",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1773044490779,
+      "tag": "0002_app_settings",
+      "breakpoints": true
     }
   ]
 }

@@ -51,7 +51,7 @@ export function AppShell({
 	const location = useLocation();
 
 	return (
-		<div className="min-h-screen pb-28 md:pb-10">
+		<div className="min-h-screen pb-[calc(8.5rem+env(safe-area-inset-bottom))] md:pb-10">
 			<header className="fixed inset-x-0 top-0 z-40 hidden border-b border-[color:var(--border-subtle)] bg-[rgba(21,19,32,0.95)] backdrop-blur-xl md:block">
 				<div className="mx-auto flex h-18 max-w-5xl items-center justify-between px-4">
 					<Link
@@ -96,14 +96,14 @@ export function AppShell({
 
 			<main
 				className={cn(
-					"mx-auto w-full px-4 py-8 md:pt-26 md:pb-12",
+					"mx-auto w-full px-4 py-8 pb-[calc(8.5rem+env(safe-area-inset-bottom))] md:pt-26 md:pb-12",
 					WIDTH_CLASSES[width],
 				)}
 			>
 				{children}
 			</main>
 
-			<nav className="fixed inset-x-0 bottom-0 z-40 border-t border-[color:var(--border-subtle)] bg-[rgba(21,19,32,0.95)] px-3 py-3 backdrop-blur-xl md:hidden">
+			<nav className="fixed inset-x-0 bottom-0 z-40 border-t border-[color:var(--border-subtle)] bg-[rgba(21,19,32,0.95)] px-3 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] backdrop-blur-xl md:hidden">
 				<Surface
 					variant="subtle"
 					className="mx-auto grid max-w-lg grid-cols-4 gap-2 p-2"

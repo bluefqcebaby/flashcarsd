@@ -1,5 +1,6 @@
 import { sql } from "drizzle-orm";
 import {
+	boolean,
 	index,
 	integer,
 	jsonb,
@@ -40,6 +41,17 @@ export const flashcards = pgTable(
 		index("flashcards_language_due_idx").on(table.languageId, table.dueAt),
 	],
 );
+
+export const appSettings = pgTable("app_settings", {
+	id: text("id").primaryKey(),
+	onboardingCompleted: boolean("onboarding_completed")
+		.notNull()
+		.default(false),
+	activeLanguageId: text("active_language_id"),
+	nativeLanguageId: text("native_language_id").notNull(),
+	createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+	updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+});
 
 export const reviewEvents = pgTable(
 	"review_events",

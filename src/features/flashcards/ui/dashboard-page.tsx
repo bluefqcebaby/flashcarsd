@@ -140,22 +140,27 @@ export function DashboardPage() {
 					{snapshot.dueCount > 0 ? (
 						<Link
 							to="/review"
-							className="rounded-2xl border border-[color:var(--border-accent)] bg-[linear-gradient(165deg,var(--bg-elevated),var(--bg-surface))] px-5 py-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.03),0_0_20px_rgba(245,183,49,0.15),0_0_60px_rgba(245,183,49,0.05),0_22px_60px_rgba(0,0,0,0.26)] transition hover:-translate-y-0.5"
+							className="block transition hover:-translate-y-0.5"
 						>
-							<div>
-								<p className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--accent-gold)]">
-									Ready to review
-								</p>
-								<p className="mt-2 text-3xl font-semibold text-[var(--text-primary)]">
-									{snapshot.dueCount} cards due
-								</p>
-								<p className="mt-2 text-xs text-[var(--text-tertiary)]">
-									{snapshot.dueNewCount} new + {snapshot.dueReviewCount} review
-								</p>
-							</div>
-							<div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[var(--accent-gold)] text-[var(--text-inverse)]">
-								<Shuffle size={20} />
-							</div>
+							<Surface
+								variant="glow"
+								className="flex items-center justify-between gap-4 px-5 py-5"
+							>
+								<div className="min-w-0 flex-1">
+									<p className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--accent-gold)]">
+										Ready to review
+									</p>
+									<p className="mt-2 text-3xl font-semibold text-[var(--text-primary)]">
+										{snapshot.dueCount} cards due
+									</p>
+									<p className="mt-2 text-xs text-[var(--text-tertiary)]">
+										{snapshot.dueNewCount} new + {snapshot.dueReviewCount} review
+									</p>
+								</div>
+								<div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[var(--accent-gold)] text-[var(--text-inverse)]">
+									<Shuffle size={20} />
+								</div>
+							</Surface>
 						</Link>
 					) : (
 						<Surface className="flex items-center justify-center px-5 py-6 text-center text-[var(--accent-mint)]">

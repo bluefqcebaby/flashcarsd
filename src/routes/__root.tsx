@@ -6,6 +6,7 @@ import {
 } from "@tanstack/react-router";
 import { useEffect } from "react";
 
+import { FlashcardsAppProvider } from "#/features/flashcards/ui/flashcards-app-provider";
 import appCss from "../styles.css?url";
 
 export const Route = createRootRoute({
@@ -49,7 +50,11 @@ function RootComponent() {
 		}
 	}, []);
 
-	return <Outlet />;
+	return (
+		<FlashcardsAppProvider>
+			<Outlet />
+		</FlashcardsAppProvider>
+	);
 }
 
 function RootDocument({ children }: { children: React.ReactNode }) {
