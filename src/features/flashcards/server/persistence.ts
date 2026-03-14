@@ -1,9 +1,6 @@
-import { asc, desc, eq, sql } from "drizzle-orm";
+import { and, asc, desc, eq, sql } from "drizzle-orm";
 
-import {
-	APP_SETTINGS_ROW_ID,
-	createDefaultAppSettings,
-} from "#/features/flashcards/model/app-state";
+import { createDefaultAppSettings } from "#/features/flashcards/model/app-state";
 import {
 	getComparablePrompt,
 	normalizeExampleStorage,
@@ -24,10 +21,10 @@ import type {
 } from "#/features/flashcards/model/types";
 import { getDb } from "#/shared/db/client";
 import {
-	appSettings,
 	flashcards,
 	reviewEvents,
 	reviewSessionSummaries,
+	userSettings,
 } from "#/shared/db/schema";
 
 function toIsoString(value: Date | string | null) {
@@ -99,7 +96,7 @@ function mapSummary(
 	};
 }
 
-function mapAppSettings(row: typeof appSettings.$inferSelect): AppSettings {
+function mapUserSettings(row: typeof userSettings.$inferSelect): AppSettings {
 	return {
 		onboardingCompleted: row.onboardingCompleted,
 		activeLanguageId: row.activeLanguageId,
@@ -107,11 +104,11 @@ function mapAppSettings(row: typeof appSettings.$inferSelect): AppSettings {
 	};
 }
 
-function createAppSettingsRecord(settings: AppSettings) {
+function createUserSettingsRecord(userId: string, settings: AppSettings) {
 	const now = new Date();
 
 	return {
-		id: APP_SETTINGS_ROW_ID,
+		userId,
 		onboardingCompleted: settings.onboardingCompleted,
 		activeLanguageId: settings.activeLanguageId,
 		nativeLanguageId: settings.nativeLanguageId,
@@ -120,18 +117,19 @@ function createAppSettingsRecord(settings: AppSettings) {
 	};
 }
 
-async function getLatestSummary() {
+async function getLatestSummary(userId: string) {
 	const db = getDb();
 	const [summaryRow] = await db
 		.select()
 		.from(reviewSessionSummaries)
+		.where(eq(reviewSessionSummaries.userId, userId))
 		.orderBy(desc(reviewSessionSummaries.completedAt))
 		.limit(1);
 
 	return summaryRow ? mapSummary(summaryRow) : null;
 }
 
-async function insertCards(cardsToInsert: Flashcard[]) {
+async function insertCards(userId: string, cardsToInsert: Flashcard[]) {
 	if (cardsToInsert.length === 0) {
 		return;
 	}
@@ -140,6 +138,7 @@ async function insertCards(cardsToInsert: Flashcard[]) {
 	await db.insert(flashcards).values(
 		cardsToInsert.map((card) => ({
 			id: card.id,
+			userId,
 			languageId: card.languageId,
 			prompt: card.prompt,
 			translation: card.translation,
@@ -168,7 +167,10 @@ async function insertCards(cardsToInsert: Flashcard[]) {
 	);
 }
 
-async function upsertSummary(summary: ReviewSessionSummary | null) {
+async function upsertSummary(
+	userId: string,
+	summary: ReviewSessionSummary | null,
+) {
 	if (!summary) {
 		return;
 	}
@@ -178,6 +180,7 @@ async function upsertSummary(summary: ReviewSessionSummary | null) {
 		.insert(reviewSessionSummaries)
 		.values({
 			id: summary.id,
+			userId,
 			languageId: summary.languageId,
 			completedAt: new Date(summary.completedAt),
 			reviewedCount: summary.reviewedCount,
@@ -188,6 +191,7 @@ async function upsertSummary(summary: ReviewSessionSummary | null) {
 		.onConflictDoUpdate({
 			target: reviewSessionSummaries.id,
 			set: {
+				userId,
 				languageId: summary.languageId,
 				completedAt: new Date(summary.completedAt),
 				reviewedCount: summary.reviewedCount,
@@ -198,15 +202,15 @@ async function upsertSummary(summary: ReviewSessionSummary | null) {
 		});
 }
 
-async function upsertAppSettingsRecord(settings: AppSettings) {
-	const record = createAppSettingsRecord(settings);
+async function upsertUserSettingsRecord(userId: string, settings: AppSettings) {
+	const record = createUserSettingsRecord(userId, settings);
 	const db = getDb();
 
 	await db
-		.insert(appSettings)
+		.insert(userSettings)
 		.values(record)
 		.onConflictDoUpdate({
-			target: appSettings.id,
+			target: userSettings.userId,
 			set: {
 				onboardingCompleted: record.onboardingCompleted,
 				activeLanguageId: record.activeLanguageId,
@@ -220,69 +224,53 @@ function createCardId() {
 	return `card-${Math.random().toString(36).slice(2, 10)}`;
 }
 
-let appSettingsTableReady: Promise<void> | null = null;
-
-async function ensureAppSettingsTable() {
-	if (!appSettingsTableReady) {
-		appSettingsTableReady = (async () => {
-			const db = getDb();
-
-			await db.execute(sql`
-				CREATE TABLE IF NOT EXISTS "app_settings" (
-					"id" text PRIMARY KEY NOT NULL,
-					"onboarding_completed" boolean DEFAULT false NOT NULL,
-					"active_language_id" text,
-					"native_language_id" text NOT NULL,
-					"created_at" timestamp with time zone NOT NULL,
-					"updated_at" timestamp with time zone NOT NULL
-				)
-			`);
-		})();
-	}
-
-	await appSettingsTableReady;
-}
-
-export async function getAppSettings(): Promise<AppSettings> {
-	await ensureAppSettingsTable();
-
+export async function getAppSettings(userId: string): Promise<AppSettings> {
 	const db = getDb();
 	const [row] = await db
 		.select()
-		.from(appSettings)
-		.where(eq(appSettings.id, APP_SETTINGS_ROW_ID))
+		.from(userSettings)
+		.where(eq(userSettings.userId, userId))
 		.limit(1);
 
 	if (row) {
-		return mapAppSettings(row);
+		return mapUserSettings(row);
 	}
 
 	const defaults = createDefaultAppSettings();
-	await upsertAppSettingsRecord(defaults);
+	await upsertUserSettingsRecord(userId, defaults);
 	return defaults;
 }
 
 export async function updateAppSettings(
+	userId: string,
 	input: Partial<AppSettings>,
 ): Promise<AppSettings> {
-	await ensureAppSettingsTable();
-
-	const current = await getAppSettings();
+	const current = await getAppSettings(userId);
 	const next: AppSettings = {
 		...current,
 		...input,
 	};
 
-	await upsertAppSettingsRecord(next);
+	await upsertUserSettingsRecord(userId, next);
 	return next;
 }
 
-export async function getAppDataSnapshot(): Promise<AppDataSnapshot> {
+export async function getAppDataSnapshot(
+	userId: string,
+): Promise<AppDataSnapshot> {
 	const db = getDb();
 	const [cardRows, reviewEventRows, lastSessionSummary] = await Promise.all([
-		db.select().from(flashcards).orderBy(asc(flashcards.createdAt)),
-		db.select().from(reviewEvents).orderBy(asc(reviewEvents.reviewedAt)),
-		getLatestSummary(),
+		db
+			.select()
+			.from(flashcards)
+			.where(eq(flashcards.userId, userId))
+			.orderBy(asc(flashcards.createdAt)),
+		db
+			.select()
+			.from(reviewEvents)
+			.where(eq(reviewEvents.userId, userId))
+			.orderBy(asc(reviewEvents.reviewedAt)),
+		getLatestSummary(userId),
 	]);
 
 	return {
@@ -293,6 +281,7 @@ export async function getAppDataSnapshot(): Promise<AppDataSnapshot> {
 }
 
 export async function addFlashcard(
+	userId: string,
 	input: AddCardInput,
 ): Promise<
 	| { ok: true; card: Flashcard }
@@ -311,7 +300,12 @@ export async function addFlashcard(
 	const existingCards = await db
 		.select()
 		.from(flashcards)
-		.where(eq(flashcards.languageId, input.languageId));
+		.where(
+			and(
+				eq(flashcards.userId, userId),
+				eq(flashcards.languageId, input.languageId),
+			),
+		);
 
 	const duplicate = existingCards
 		.map(mapFlashcard)
@@ -366,11 +360,12 @@ export async function addFlashcard(
 		streak: 0,
 	};
 
-	await insertCards([card]);
+	await insertCards(userId, [card]);
 	return { ok: true, card };
 }
 
 export async function reviewFlashcardById(
+	userId: string,
 	cardId: string,
 	rating: ReviewRating,
 ): Promise<ReviewResult | null> {
@@ -378,7 +373,7 @@ export async function reviewFlashcardById(
 	const [row] = await db
 		.select()
 		.from(flashcards)
-		.where(eq(flashcards.id, cardId));
+		.where(and(eq(flashcards.id, cardId), eq(flashcards.userId, userId)));
 
 	if (!row) {
 		return null;
@@ -413,10 +408,11 @@ export async function reviewFlashcardById(
 				wrongReviews: result.card.wrongReviews,
 				streak: result.card.streak,
 			})
-			.where(eq(flashcards.id, cardId));
+			.where(and(eq(flashcards.id, cardId), eq(flashcards.userId, userId)));
 
 		await tx.insert(reviewEvents).values({
 			id: result.event.id,
+			userId,
 			cardId: result.event.cardId,
 			languageId: result.event.languageId,
 			rating: result.event.rating,
@@ -431,22 +427,31 @@ export async function reviewFlashcardById(
 	return result;
 }
 
-export async function saveReviewSessionSummary(summary: ReviewSessionSummary) {
-	await upsertSummary(summary);
+export async function saveReviewSessionSummary(
+	userId: string,
+	summary: ReviewSessionSummary,
+) {
+	await upsertSummary(userId, summary);
 	return summary;
 }
 
 export async function ensureStarterDeck(
+	userId: string,
 	input: CompleteOnboardingInput,
 ): Promise<AppDataSnapshot> {
 	const db = getDb();
 	const [existingCards] = await db
 		.select({ count: sql<number>`count(*)` })
 		.from(flashcards)
-		.where(eq(flashcards.languageId, input.targetLanguageId));
+		.where(
+			and(
+				eq(flashcards.userId, userId),
+				eq(flashcards.languageId, input.targetLanguageId),
+			),
+		);
 
 	if (Number(existingCards?.count ?? 0) > 0) {
-		return getAppDataSnapshot();
+		return getAppDataSnapshot(userId);
 	}
 
 	const starterDeck = buildStarterDeck(input);
@@ -455,6 +460,7 @@ export async function ensureStarterDeck(
 		await tx.insert(flashcards).values(
 			starterDeck.cards.map((card) => ({
 				id: card.id,
+				userId,
 				languageId: card.languageId,
 				prompt: card.prompt,
 				translation: card.translation,
@@ -484,6 +490,7 @@ export async function ensureStarterDeck(
 		await tx.insert(reviewEvents).values(
 			starterDeck.reviewEvents.map((event) => ({
 				id: event.id,
+				userId,
 				cardId: event.cardId,
 				languageId: event.languageId,
 				rating: event.rating,
@@ -496,6 +503,7 @@ export async function ensureStarterDeck(
 		);
 		await tx.insert(reviewSessionSummaries).values({
 			id: starterDeck.lastSessionSummary.id,
+			userId,
 			languageId: starterDeck.lastSessionSummary.languageId,
 			completedAt: new Date(starterDeck.lastSessionSummary.completedAt),
 			reviewedCount: starterDeck.lastSessionSummary.reviewedCount,
@@ -505,24 +513,24 @@ export async function ensureStarterDeck(
 		});
 	});
 
-	return getAppDataSnapshot();
+	return getAppDataSnapshot(userId);
 }
 
-export async function resetFlashcardsApp() {
-	await ensureAppSettingsTable();
-
+export async function resetFlashcardsApp(userId: string) {
 	const defaults = createDefaultAppSettings();
 	const db = getDb();
 
 	await db.transaction(async (tx) => {
-		await tx.delete(reviewSessionSummaries);
-		await tx.delete(reviewEvents);
-		await tx.delete(flashcards);
 		await tx
-			.insert(appSettings)
-			.values(createAppSettingsRecord(defaults))
+			.delete(reviewSessionSummaries)
+			.where(eq(reviewSessionSummaries.userId, userId));
+		await tx.delete(reviewEvents).where(eq(reviewEvents.userId, userId));
+		await tx.delete(flashcards).where(eq(flashcards.userId, userId));
+		await tx
+			.insert(userSettings)
+			.values(createUserSettingsRecord(userId, defaults))
 			.onConflictDoUpdate({
-				target: appSettings.id,
+				target: userSettings.userId,
 				set: {
 					onboardingCompleted: defaults.onboardingCompleted,
 					activeLanguageId: defaults.activeLanguageId,

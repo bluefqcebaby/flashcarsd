@@ -31,6 +31,10 @@ bun run test
 - `DATABASE_URL` (Neon/Postgres connection string)
 - `OPENAI_API_KEY`
 - `OPENAI_MODEL` (optional, defaults to `gpt-5-mini`)
+- `BETTER_AUTH_SECRET` (required for stable auth sessions)
+- `BETTER_AUTH_URL` (for local dev use `http://localhost:1235`)
+- `GOOGLE_CLIENT_ID` (required for Google OAuth)
+- `GOOGLE_CLIENT_SECRET` (required for Google OAuth)
 2. Generate migrations:
 
 ```bash
@@ -52,6 +56,14 @@ bun run check:integrations
 5. Or verify from UI:
 - Open `/`
 - Click `Run integration check`
+
+## Google OAuth Callback
+
+For local development, add this redirect URI in Google Cloud:
+
+```bash
+http://localhost:1235/api/auth/callback/google
+```
 
 ## Styling
 

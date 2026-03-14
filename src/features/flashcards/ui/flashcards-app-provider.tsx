@@ -5,12 +5,7 @@ import {
 	useQuery,
 	useQueryClient,
 } from "@tanstack/react-query";
-import {
-	createContext,
-	useContext,
-	useState,
-	type ReactNode,
-} from "react";
+import { createContext, type ReactNode, useContext, useState } from "react";
 
 import {
 	createDefaultAppSettings,
@@ -26,8 +21,10 @@ import type {
 	ReviewResult,
 	ReviewSessionSummary,
 } from "#/features/flashcards/model/types";
+import { authClient } from "#/shared/lib/auth-client";
 
 type BootStatus = "booting" | "ready";
+type SessionShape = typeof authClient.$Infer.Session;
 
 interface ActivateLanguageInput {
 	languageId: string;
@@ -42,8 +39,12 @@ interface AddCardResult {
 }
 
 interface FlashcardsSettingsContextValue {
+	authStatus: BootStatus;
+	session: SessionShape | null;
 	settings: AppSettings;
 	settingsStatus: BootStatus;
+	signInWithGoogle: (callbackURL?: string) => Promise<void>;
+	signOut: () => Promise<void>;
 	completeOnboarding: (input: CompleteOnboardingInput) => Promise<void>;
 	activateLanguage: (input: ActivateLanguageInput) => Promise<void>;
 	setNativeLanguage: (languageId: string) => Promise<void>;
@@ -160,10 +161,15 @@ async function resetFlashcardsApp() {
 
 function FlashcardsSettingsProvider({ children }: { children: ReactNode }) {
 	const queryClient = useQueryClient();
+	const sessionQuery = authClient.useSession();
+	const session = sessionQuery.data;
+	const isAuthenticated = Boolean(session);
+	const authStatus = sessionQuery.isPending ? "booting" : "ready";
+
 	const settingsQuery = useQuery({
 		queryKey: SETTINGS_QUERY_KEY,
 		queryFn: fetchAppSettings,
-		enabled: isClientRuntime(),
+		enabled: isClientRuntime() && authStatus === "ready" && isAuthenticated,
 		staleTime: SETTINGS_STALE_TIME,
 	});
 	const updateSettingsMutation = useMutation({
@@ -182,7 +188,10 @@ function FlashcardsSettingsProvider({ children }: { children: ReactNode }) {
 		mutationFn: resetFlashcardsApp,
 		onSuccess: ({ settings }) => {
 			queryClient.setQueryData(SETTINGS_QUERY_KEY, settings);
-			queryClient.setQueryData(APP_DATA_QUERY_KEY, createEmptyAppDataSnapshot());
+			queryClient.setQueryData(
+				APP_DATA_QUERY_KEY,
+				createEmptyAppDataSnapshot(),
+			);
 		},
 	});
 
@@ -190,11 +199,39 @@ function FlashcardsSettingsProvider({ children }: { children: ReactNode }) {
 		throw settingsQuery.error;
 	}
 
-	const settings = settingsQuery.data ?? createDefaultAppSettings();
+	const settings = isAuthenticated
+		? (settingsQuery.data ?? createDefaultAppSettings())
+		: createDefaultAppSettings();
+	const settingsStatus =
+		authStatus === "booting" ||
+		(isAuthenticated && !settingsQuery.isSuccess && !settingsQuery.data)
+			? "booting"
+			: "ready";
 
 	const value: FlashcardsSettingsContextValue = {
+		authStatus,
+		session,
 		settings,
-		settingsStatus: settingsQuery.isSuccess ? "ready" : "booting",
+		settingsStatus,
+		signInWithGoogle: async (callbackURL = "/") => {
+			const result = await authClient.signIn.social({
+				callbackURL,
+				disableRedirect: true,
+				provider: "google",
+			});
+			const redirectUrl = result.data?.url;
+
+			if (!redirectUrl) {
+				throw new Error("Could not start Google sign-in.");
+			}
+
+			window.location.assign(redirectUrl);
+		},
+		signOut: async () => {
+			await authClient.signOut();
+			queryClient.clear();
+			await sessionQuery.refetch();
+		},
 		completeOnboarding: async (input) => {
 			await updateSettingsMutation.mutateAsync({
 				onboardingCompleted: true,
@@ -270,8 +307,12 @@ function useFlashcardsSettings() {
 
 export function useFlashcardsAppSettings() {
 	const {
+		authStatus,
+		session,
 		settings,
 		settingsStatus,
+		signInWithGoogle,
+		signOut,
 		completeOnboarding,
 		activateLanguage,
 		setNativeLanguage,
@@ -279,8 +320,13 @@ export function useFlashcardsAppSettings() {
 	} = useFlashcardsSettings();
 
 	return {
+		session,
+		isAuthenticated: Boolean(session),
+		authStatus,
 		settings,
 		bootStatus: settingsStatus,
+		signInWithGoogle,
+		signOut,
 		completeOnboarding,
 		activateLanguage,
 		setNativeLanguage,
@@ -292,18 +338,23 @@ export function useFlashcardsAppSettings() {
 export function useFlashcardsApp() {
 	const queryClient = useQueryClient();
 	const {
+		authStatus,
+		session,
 		settings,
 		bootStatus,
+		signInWithGoogle,
+		signOut,
 		completeOnboarding,
 		activateLanguage,
 		setNativeLanguage,
 		resetApp,
 		activeLanguage,
 	} = useFlashcardsAppSettings();
+	const isAuthenticated = Boolean(session);
 	const appDataQuery = useQuery({
 		queryKey: APP_DATA_QUERY_KEY,
 		queryFn: fetchAppData,
-		enabled: isClientRuntime(),
+		enabled: isClientRuntime() && authStatus === "ready" && isAuthenticated,
 		staleTime: APP_DATA_STALE_TIME,
 	});
 	const addCardMutation = useMutation({
@@ -360,7 +411,9 @@ export function useFlashcardsApp() {
 		throw appDataQuery.error;
 	}
 
-	const snapshot = appDataQuery.data ?? createEmptyAppDataSnapshot();
+	const snapshot = isAuthenticated
+		? (appDataQuery.data ?? createEmptyAppDataSnapshot())
+		: createEmptyAppDataSnapshot();
 	const state = {
 		settings,
 		...snapshot,
@@ -368,10 +421,16 @@ export function useFlashcardsApp() {
 
 	return {
 		state,
+		session,
+		isAuthenticated,
+		authStatus,
 		bootStatus:
-			bootStatus === "ready" && appDataQuery.isSuccess
+			authStatus === "ready" &&
+			(!isAuthenticated || (bootStatus === "ready" && appDataQuery.isSuccess))
 				? ("ready" as BootStatus)
 				: ("booting" as BootStatus),
+		signInWithGoogle,
+		signOut,
 		completeOnboarding,
 		activateLanguage,
 		setNativeLanguage,

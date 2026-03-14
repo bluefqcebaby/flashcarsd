@@ -5,22 +5,8 @@
     {
       "idx": 0,
       "version": "7",
-      "when": 1772780463743,
-      "tag": "0000_nice_ozymandias",
-      "breakpoints": true
-    },
-    {
-      "idx": 1,
-      "version": "7",
-      "when": 1773051600000,
-      "tag": "0001_flashcards_persistence",
-      "breakpoints": true
-    },
-    {
-      "idx": 2,
-      "version": "7",
-      "when": 1773044490779,
-      "tag": "0002_app_settings",
+      "when": 1773130048420,
+      "tag": "0000_initial",
       "breakpoints": true
     }
   ]

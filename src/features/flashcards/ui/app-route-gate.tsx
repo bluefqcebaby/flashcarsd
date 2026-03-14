@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 
 import { Surface } from "#/components/ui/surface";
 import { useFlashcardsAppSettings } from "#/features/flashcards/ui/flashcards-app-provider";
+import { SignInScreen } from "#/features/flashcards/ui/sign-in-screen";
 
 function BootScreen() {
 	return (
@@ -30,10 +31,15 @@ export function AppRouteGate({
 	children: ReactNode;
 	requireOnboarding?: boolean;
 }) {
-	const { bootStatus, settings } = useFlashcardsAppSettings();
+	const { authStatus, bootStatus, isAuthenticated, settings } =
+		useFlashcardsAppSettings();
 
-	if (bootStatus === "booting") {
+	if (authStatus === "booting" || bootStatus === "booting") {
 		return <BootScreen />;
+	}
+
+	if (!isAuthenticated) {
+		return <SignInScreen />;
 	}
 
 	if (requireOnboarding && !settings.onboardingCompleted) {

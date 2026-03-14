@@ -1,5 +1,5 @@
 import { Link, useNavigate } from "@tanstack/react-router";
-import { ArrowLeft, Globe, Languages, Trash2 } from "lucide-react";
+import { ArrowLeft, Globe, Languages, LogOut, Trash2 } from "lucide-react";
 import { useMemo, useState } from "react";
 
 import { Button } from "#/components/ui/button";
@@ -21,6 +21,7 @@ export function SettingsPage() {
 		activateLanguage,
 		setNativeLanguage,
 		resetApp,
+		signOut,
 	} = useFlashcardsApp();
 	const [confirmReset, setConfirmReset] = useState(false);
 	const cardCounts = useMemo(
@@ -121,6 +122,33 @@ export function SettingsPage() {
 							</option>
 						))}
 					</select>
+				</Surface>
+
+				<Surface className="border-[rgba(252,165,165,0.24)] px-5 py-5">
+					<div className="flex items-center gap-3">
+						<div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[rgba(96,165,250,0.12)] text-[#93c5fd]">
+							<LogOut size={18} />
+						</div>
+						<div>
+							<p className="text-base font-semibold text-[var(--text-primary)]">
+								Sign Out
+							</p>
+							<p className="text-sm text-[var(--text-secondary)]">
+								End this session and return to Google sign-in.
+							</p>
+						</div>
+					</div>
+
+					<Button
+						variant="outline"
+						className="mt-5 w-full"
+						onClick={async () => {
+							await signOut();
+							navigate({ to: "/" });
+						}}
+					>
+						Sign out
+					</Button>
 				</Surface>
 
 				<Surface className="border-[rgba(252,165,165,0.24)] px-5 py-5">

@@ -6,12 +6,27 @@ import {
 	getAppSettings,
 	updateAppSettings,
 } from "#/features/flashcards/server/persistence";
+import { requireAuthenticatedUserId } from "#/shared/lib/auth";
 
 export const Route = createFileRoute("/api/settings")({
 	server: {
 		handlers: {
-			GET: async () => json(await getAppSettings()),
+			GET: async ({ request }) => {
+				const userId = await requireAuthenticatedUserId(request);
+
+				if (!userId) {
+					return json({ error: "Unauthorized." }, { status: 401 });
+				}
+
+				return json(await getAppSettings(userId));
+			},
 			PATCH: async ({ request }) => {
+				const userId = await requireAuthenticatedUserId(request);
+
+				if (!userId) {
+					return json({ error: "Unauthorized." }, { status: 401 });
+				}
+
 				const payload = (await request.json()) as Partial<AppSettings>;
 
 				if (
@@ -26,7 +41,7 @@ export const Route = createFileRoute("/api/settings")({
 					return json({ error: "Invalid settings payload." }, { status: 400 });
 				}
 
-				const settings = await updateAppSettings(payload);
+				const settings = await updateAppSettings(userId, payload);
 				return json(settings);
 			},
 		},

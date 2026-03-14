@@ -24,6 +24,7 @@ import { Route as ApiIntegrationCheckRouteImport } from './routes/api/integratio
 import { Route as ApiGenerateCardRouteImport } from './routes/api/generate-card'
 import { Route as ApiCardsRouteImport } from './routes/api/cards'
 import { Route as ApiAppStateRouteImport } from './routes/api/app-state'
+import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
 
 const SettingsRoute = SettingsRouteImport.update({
   id: '/settings',
@@ -100,6 +101,11 @@ const ApiAppStateRoute = ApiAppStateRouteImport.update({
   path: '/api/app-state',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
+  id: '/api/auth/$',
+  path: '/api/auth/$',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -117,6 +123,7 @@ export interface FileRoutesByFullPath {
   '/api/session-summary': typeof ApiSessionSummaryRoute
   '/api/settings': typeof ApiSettingsRoute
   '/api/starter-deck': typeof ApiStarterDeckRoute
+  '/api/auth/$': typeof ApiAuthSplatRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -134,6 +141,7 @@ export interface FileRoutesByTo {
   '/api/session-summary': typeof ApiSessionSummaryRoute
   '/api/settings': typeof ApiSettingsRoute
   '/api/starter-deck': typeof ApiStarterDeckRoute
+  '/api/auth/$': typeof ApiAuthSplatRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -152,6 +160,7 @@ export interface FileRoutesById {
   '/api/session-summary': typeof ApiSessionSummaryRoute
   '/api/settings': typeof ApiSettingsRoute
   '/api/starter-deck': typeof ApiStarterDeckRoute
+  '/api/auth/$': typeof ApiAuthSplatRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -171,6 +180,7 @@ export interface FileRouteTypes {
     | '/api/session-summary'
     | '/api/settings'
     | '/api/starter-deck'
+    | '/api/auth/$'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -188,6 +198,7 @@ export interface FileRouteTypes {
     | '/api/session-summary'
     | '/api/settings'
     | '/api/starter-deck'
+    | '/api/auth/$'
   id:
     | '__root__'
     | '/'
@@ -205,6 +216,7 @@ export interface FileRouteTypes {
     | '/api/session-summary'
     | '/api/settings'
     | '/api/starter-deck'
+    | '/api/auth/$'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -223,6 +235,7 @@ export interface RootRouteChildren {
   ApiSessionSummaryRoute: typeof ApiSessionSummaryRoute
   ApiSettingsRoute: typeof ApiSettingsRoute
   ApiStarterDeckRoute: typeof ApiStarterDeckRoute
+  ApiAuthSplatRoute: typeof ApiAuthSplatRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -332,6 +345,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAppStateRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/auth/$': {
+      id: '/api/auth/$'
+      path: '/api/auth/$'
+      fullPath: '/api/auth/$'
+      preLoaderRoute: typeof ApiAuthSplatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -351,6 +371,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiSessionSummaryRoute: ApiSessionSummaryRoute,
   ApiSettingsRoute: ApiSettingsRoute,
   ApiStarterDeckRoute: ApiStarterDeckRoute,
+  ApiAuthSplatRoute: ApiAuthSplatRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
